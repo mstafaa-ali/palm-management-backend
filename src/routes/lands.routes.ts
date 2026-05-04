@@ -7,6 +7,7 @@ import {
   getAllLands,
   getLandsByNik,
   getLandStats,
+  updateLand,
 } from "../controllers/lands.controller";
 
 const router = Router();
@@ -28,5 +29,11 @@ router.get("/user/:nik", getLandsByNik);
  * Agregasi total tonase dan chart_data bulanan
  */
 router.get("/:id/stats", getLandStats);
+
+/**
+ * PUT /api/lands/:id
+ * Update data lahan (jenis_bibit, koordinat_gps, dll)
+ */
+router.put("/:id", updateLand);
 
 export default router;
