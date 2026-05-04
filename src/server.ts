@@ -9,14 +9,24 @@
 
 import express, { Request, Response, NextFunction } from "express";
 import cors from "cors";
+import session from "express-session";
+import pgSession from "connect-pg-simple";
+import { Pool } from "pg";
 import landsRoutes from "./routes/lands.routes";
 import usersRoutes from "./routes/users.routes";
 import workLogsRoutes from "./routes/work-logs.routes";
-
+import authRoutes from "./routes/auth.routes";
+import harvestsRoutes from "./routes/harvests.routes";
+import costsRoutes from "./routes/costs.routes";
 // ─── App Setup ────────────────────────────────────────────────────────────────
 
 const app = express();
 const PORT = process.env.PORT || 5000;
+
+// ─── DB Pool for Session ──────────────────────────────────────────────────────
+const pgPool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+});
 
 // ─── CORS ─────────────────────────────────────────────────────────────────────
 // Development : allow semua origin (Postman, browser, frontend port apapun)
@@ -27,17 +37,7 @@ const ALLOWED_ORIGINS_PROD = [
 ];
 
 const corsOptions: cors.CorsOptions = {
-  origin:
-    process.env.NODE_ENV === "production"
-      ? (origin, callback) => {
-          // Di production: blokir jika origin tidak ada di whitelist
-          if (!origin || ALLOWED_ORIGINS_PROD.includes(origin)) {
-            callback(null, true);
-          } else {
-            callback(new Error(`CORS: origin '${origin}' tidak diizinkan.`));
-          }
-        }
-      : true, // Di development: izinkan semua origin (termasuk Postman & browser langsung)
+  origin: "http://localhost:3000", // Sesuai permintaan: origin ketat
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
@@ -49,6 +49,27 @@ app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ─── Session Middleware ───────────────────────────────────────────────────────
+const PgSessionStore = pgSession(session);
+
+app.use(
+  session({
+    store: new PgSessionStore({
+      pool: pgPool,
+      tableName: "session",
+    }),
+    secret: process.env.SESSION_SECRET || "super-secret-key-palm-management",
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production", // false untuk localhost
+      maxAge: 24 * 60 * 60 * 1000, // 1 hari
+      sameSite: "lax",
+    },
+  })
+);
 
 // ─── Health Check ─────────────────────────────────────────────────────────────
 
@@ -63,9 +84,12 @@ app.get("/health", (_req: Request, res: Response) => {
 
 // ─── Routes ──────────────────────────────────────────────────────────────────
 
+app.use("/api/auth", authRoutes);
 app.use("/api/lands", landsRoutes);
 app.use("/api/users", usersRoutes);
 app.use("/api/work-logs", workLogsRoutes);
+app.use("/api/harvests", harvestsRoutes);
+app.use("/api/costs", costsRoutes);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 

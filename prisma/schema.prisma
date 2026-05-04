@@ -48,6 +48,8 @@ model Land {
   status_kepemilikan    String?  @db.VarChar(100)  // "Milik Sendiri", "Plasma", dll
   jenis_sertifikasi     String?  @db.VarChar(100)  // "ISPO", "RSPO", "Belum bersertifikat"
   usia_tanam_raw        String?  @db.VarChar(100)  // Raw string: "4-12 tahun", "2 dan 7 tahun", "TBM"
+  jenis_bibit           String?  @db.VarChar(100)
+  koordinat_gps         String?  @db.Text
   baseline_produksi_ton Decimal? @db.Decimal(10, 4)
   produksi_raw          String?  @db.VarChar(100)  // Simpan nilai asli jika tidak bisa jadi angka ("TBM", "5000-18000")
   pabrik_mitra          String?  @db.VarChar(255)
@@ -55,8 +57,10 @@ model Land {
   // Relasi FK ke users
   owner User @relation(fields: [owner_nik], references: [nik], onDelete: Cascade)
   
-  // Relasi ke work_logs
+  // Relasi ke tabel log kerja, panen, dan biaya
   work_logs WorkLog[]
+  harvests  Harvest[]
+  costs     Cost[]
 
   @@map("lands")
 }
@@ -72,10 +76,59 @@ model WorkLog {
   check_in_time  DateTime
   check_out_time DateTime
   tonase         Decimal  @db.Decimal(10, 4)
+  jumlah_janjang Int?
   created_at     DateTime @default(now())
 
   worker User @relation(fields: [worker_nik], references: [nik], onDelete: Cascade)
   land   Land @relation(fields: [land_id], references: [id], onDelete: Cascade)
 
   @@map("work_logs")
+}
+
+// ============================================================
+// TABLE: session
+// Digunakan oleh connect-pg-simple untuk menyimpan session data
+// ============================================================
+model Session {
+  sid    String   @id @db.VarChar
+  sess   Json     @db.Json
+  expire DateTime @db.Timestamp(6)
+
+  @@index([expire], map: "IDX_session_expire")
+  @@map("session")
+}
+
+// ============================================================
+// TABLE: harvests
+// Menyimpan data panen harian per lahan
+// ============================================================
+model Harvest {
+  id                 String   @id @default(uuid()) @db.Uuid
+  land_id            String   @db.Uuid
+  tanggal_panen      DateTime @db.Date
+  jumlah_janjang     Int
+  estimasi_berat_kg  Decimal  @db.Decimal(10, 2)
+  created_at         DateTime @default(now())
+
+  land Land @relation(fields: [land_id], references: [id], onDelete: Cascade)
+
+  @@map("harvests")
+}
+
+// ============================================================
+// TABLE: costs
+// Menyimpan data biaya operasional per lahan
+// ============================================================
+model Cost {
+  id            String   @id @default(uuid()) @db.Uuid
+  land_id       String   @db.Uuid
+  tanggal       DateTime @db.Date
+  jenis_biaya   String   @db.VarChar(100) // "Pupuk", "Upah", "Transport", "Lainnya"
+  jumlah_biaya  Decimal  @db.Decimal(15, 2)
+  keterangan    String?  @db.Text
+  created_at    DateTime @default(now())
+
+  land Land @relation(fields: [land_id], references: [id], onDelete: Cascade)
+
+  @@map("costs")
 }

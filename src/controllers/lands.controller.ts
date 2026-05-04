@@ -162,16 +162,19 @@ export async function getLandStats(req: Request, res: Response): Promise<void> {
 
     let landIdStr = id;
     let baselineTonase = 0;
+    let landInfo: any = null;
     
     if (land) {
       landIdStr = land.id;
       baselineTonase = land.baseline_produksi_ton ? Number(land.baseline_produksi_ton) : 0;
+      landInfo = { jenis_bibit: land.jenis_bibit, koordinat_gps: land.koordinat_gps };
     } else {
       // Coba directly panggil id sbg land_id
       try {
         const directLand = await prisma.land.findUnique({ where: { id: id } });
         if (directLand) {
           baselineTonase = directLand.baseline_produksi_ton ? Number(directLand.baseline_produksi_ton) : 0;
+          landInfo = { jenis_bibit: directLand.jenis_bibit, koordinat_gps: directLand.koordinat_gps };
         }
       } catch (e) {
         // Abaikan jika bukan UUID
@@ -232,13 +235,48 @@ export async function getLandStats(req: Request, res: Response): Promise<void> {
       data: {
         baseline_tonase: baselineTonase,
         real_tonase_current_month: totalCurrentMonth,
-        chart_data: chart_data
+        chart_data: chart_data,
+        land_info: landInfo
       }
     });
 
   } catch (err) {
     console.error(`[GET /api/lands/${id}/stats] Error:`, err);
     res.status(500).json(errorResponse("Gagal memuat statistik lahan."));
+  }
+}
+
+// ─── PUT /api/lands/:id ───────────────────────────────────────────────────────
+/**
+ * Update data lahan (khususnya jenis_bibit dan koordinat_gps)
+ */
+export async function updateLand(req: Request, res: Response): Promise<void> {
+  const { id } = req.params;
+  const { jenis_bibit, koordinat_gps } = req.body;
+
+  try {
+    // Cari id sebagai land_id, jika tidak ketemu, asumsikan itu owner_nik
+    let actualLandId = id;
+    const landByNik = await prisma.land.findFirst({
+      where: { owner_nik: id },
+    });
+    
+    if (landByNik) {
+      actualLandId = landByNik.id;
+    }
+
+    const updatedLand = await prisma.land.update({
+      where: { id: actualLandId },
+      data: {
+        ...(jenis_bibit !== undefined && { jenis_bibit }),
+        ...(koordinat_gps !== undefined && { koordinat_gps }),
+      },
+    });
+
+    res.status(200).json(successResponse(updatedLand));
+  } catch (err) {
+    console.error(`[PUT /api/lands/${id}] Error:`, err);
+    res.status(500).json(errorResponse("Gagal mengupdate data lahan."));
   }
 }
 
